@@ -1,0 +1,10 @@
+{
+  "name": "kaafi-hsse-ai",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Sequential Ollama AI pipeline for KAAFI HSSE.",
+  "scripts": {
+    "check": "node --check src/pipeline.js"
+  }
+}
