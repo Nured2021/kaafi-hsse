@@ -4,7 +4,7 @@ import express from "express";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { ensureSchema, listAiRuns, pool, saveAiRun } from "./db.js";
-import { runKaafiPipeline } from "../../ai/index.js";
+import { enforceKaafiBranding, runKaafiPipeline } from "../../ai/index.js";
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -53,7 +53,7 @@ app.post("/api/ai/analyze", async (req, res, next) => {
   }
 
   try {
-    const analysis = await runKaafiPipeline(input);
+    const analysis = enforceKaafiBranding(await runKaafiPipeline(input));
     const savedRun = await saveAiRun(analysis);
 
     res.json(savedRun);
@@ -70,7 +70,7 @@ app.post("/api/full-analysis", async (req, res, next) => {
   }
 
   try {
-    const analysis = await runKaafiPipeline(input);
+    const analysis = enforceKaafiBranding(await runKaafiPipeline(input));
 
     try {
       await saveAiRun(analysis);
