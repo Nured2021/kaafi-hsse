@@ -17,6 +17,10 @@ async function askOllama(model, prompt) {
       model,
       prompt,
       stream: false,
+      keep_alive: 0,
+      options: {
+        num_predict: 160,
+      },
     }),
   });
 
@@ -26,12 +30,16 @@ async function askOllama(model, prompt) {
   }
 
   const data = await response.json();
-  return data.response || "";
+  return data.response || data.thinking || "";
 }
 
 async function runModel(modelKey, prompt, outputKey, result) {
   try {
-    result[outputKey] = await askOllama(MODELS[modelKey], prompt);
+    const output = await askOllama(MODELS[modelKey], prompt);
+    result[outputKey] = output;
+    if (!output.trim()) {
+      throw new Error(`Ollama ${MODELS[modelKey]} returned empty output`);
+    }
     result.status[modelKey] = "OK";
   } catch (error) {
     result[outputKey] = `Model failed: ${error.message}`;
