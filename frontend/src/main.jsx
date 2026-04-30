@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './styles.css';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
 function Dashboard() {
   const [dashboard, setDashboard] = useState(null);
@@ -68,7 +68,7 @@ function AiPage() {
     setResult(null);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/ai/analyze`, {
+      const response = await fetch(`${API_BASE_URL}/api/full-analysis`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ input }),
@@ -92,7 +92,7 @@ function AiPage() {
       <div className="panel-heading">
         <p className="eyebrow">AI page</p>
         <h2>Sequential HSSE analysis</h2>
-        <p className="muted">DeepSeek risk, Mistral JSA, Gemma documents, then Phi-3 summary.</p>
+        <p className="muted">DeepSeek risk, Mistral JSA, Gemma documents, then phi3 summary.</p>
       </div>
       <form onSubmit={submitAnalysis}>
         <label htmlFor="hsse-input">Work activity or safety concern</label>
@@ -104,16 +104,16 @@ function AiPage() {
           rows="8"
         />
         <button disabled={loading || !input.trim()} type="submit">
-          {loading ? 'Analyzing...' : 'Run AI pipeline'}
+          {loading ? 'Analyzing...' : 'Run Full Analysis'}
         </button>
       </form>
       {error && <p className="error">{error}</p>}
       {result && (
         <div className="results">
-          <ResultBlock title="Risk - deepseek-r1:7b" content={result.risk} />
-          <ResultBlock title="JSA - mistral:7b-instruct" content={result.jsa} />
-          <ResultBlock title="Documents - gemma:7b" content={result.documents} />
-          <ResultBlock title="Summary - phi3:medium" content={result.summary} />
+          <ResultBlock title="Risk Analysis" content={result.risk} />
+          <ResultBlock title="JSA" content={result.jsa} />
+          <ResultBlock title="Documents" content={result.documents} />
+          <ResultBlock title="Summary" content={result.summary} />
         </div>
       )}
     </section>
@@ -124,7 +124,7 @@ function ResultBlock({ title, content }) {
   return (
     <article className="result-block">
       <h3>{title}</h3>
-      <pre>{content}</pre>
+      <pre>{content || 'No output returned.'}</pre>
     </article>
   );
 }

@@ -10,7 +10,7 @@
   "dependencies": {
     "cors": "latest",
     "dotenv": "latest",
-    "express": "latest",
+    "express": "^4.21.2",
     "pg": "latest"
   }
 }

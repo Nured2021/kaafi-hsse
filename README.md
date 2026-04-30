@@ -10,7 +10,7 @@ Clean-start MVP for a safety management platform with:
 The AI flow is intentionally simple:
 
 ```text
-User Input -> DeepSeek -> Mistral -> Gemma -> Phi-3
+User Input -> DeepSeek -> Mistral -> Gemma -> phi3
 ```
 
 No orchestration layer, no routing engine, and no legacy SAFE WAY concepts are used.

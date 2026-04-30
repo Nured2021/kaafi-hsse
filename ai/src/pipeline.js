@@ -4,7 +4,7 @@ export const MODELS = {
   risk: "deepseek-r1:7b",
   jsa: "mistral:7b-instruct",
   documents: "gemma:7b",
-  summary: "phi3:medium",
+  summary: "phi3",
 };
 
 async function askOllama(model, prompt) {
@@ -27,6 +27,14 @@ async function askOllama(model, prompt) {
 
   const data = await response.json();
   return data.response || "";
+}
+
+async function runStep(stepName, model, prompt, results) {
+  try {
+    results[stepName] = await askOllama(model, prompt);
+  } catch (error) {
+    results[stepName] = `Model failed: ${error.message}`;
+  }
 }
 
 function buildRiskPrompt(input) {
@@ -82,17 +90,34 @@ export async function runKaafiPipeline(userInput) {
     throw new Error("User input is required");
   }
 
-  const risk = await askOllama(MODELS.risk, buildRiskPrompt(userInput));
-  const jsa = await askOllama(MODELS.jsa, buildJsaPrompt(userInput, risk));
-  const documents = await askOllama(MODELS.documents, buildDocumentsPrompt(userInput, risk, jsa));
-  const summary = await askOllama(MODELS.summary, buildSummaryPrompt(userInput, risk, jsa, documents));
+  const results = {
+    risk: "",
+    jsa: "",
+    documents: "",
+    summary: "",
+  };
+
+  await runStep("risk", MODELS.risk, buildRiskPrompt(userInput), results);
+  await runStep("jsa", MODELS.jsa, buildJsaPrompt(userInput, results.risk), results);
+  await runStep(
+    "documents",
+    MODELS.documents,
+    buildDocumentsPrompt(userInput, results.risk, results.jsa),
+    results,
+  );
+  await runStep(
+    "summary",
+    MODELS.summary,
+    buildSummaryPrompt(userInput, results.risk, results.jsa, results.documents),
+    results,
+  );
 
   return {
     models: MODELS,
     input: userInput,
-    risk,
-    jsa,
-    documents,
-    summary,
+    risk: results.risk,
+    jsa: results.jsa,
+    documents: results.documents,
+    summary: results.summary,
   };
 }
