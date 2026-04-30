@@ -34,32 +34,36 @@ export default function AI() {
   return (
     <div>
       <h1>AI Analysis</h1>
+      <p className="page-subtitle">Sequential HSSE pipeline — DeepSeek → Mistral → Gemma → Phi-3</p>
 
-      <textarea
-        value={input}
-        onChange={(e) => setInput(e.target.value)}
-        placeholder="Describe hazard..."
-      />
+      <div className="glass-card form-card">
+        <h3>🤖 Describe the hazard or work activity</h3>
+        <textarea
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          placeholder="Example: Hot work on a storage tank near active forklift traffic..."
+        />
 
-      <button onClick={run} disabled={loading || !input.trim()}>
-        {loading ? "Analyzing..." : "Run Analysis"}
-      </button>
+        <button className="btn btn-primary" onClick={run} disabled={loading || !input.trim()}>
+          {loading ? "⏳ Analyzing..." : "Run Full Analysis"}
+        </button>
+      </div>
 
       {error && <p className="error">{error}</p>}
 
       {result && (
-        <div className="result">
-          <h3>Risk</h3>
-          <pre>{result.risk}</pre>
+        <div className="result" style={{ marginTop: 24 }}>
+          <h3>⚠️ Risk Analysis</h3>
+          <pre>{result.risk || "No output returned."}</pre>
 
-          <h3>JSA</h3>
-          <pre>{result.jsa}</pre>
+          <h3>📋 JSA</h3>
+          <pre>{result.jsa || "No output returned."}</pre>
 
-          <h3>Documents</h3>
-          <pre>{result.documents}</pre>
+          <h3>📄 Documents</h3>
+          <pre>{result.documents || "No output returned."}</pre>
 
-          <h3>Summary</h3>
-          <pre>{result.summary}</pre>
+          <h3>📊 Summary</h3>
+          <pre>{result.summary || "No output returned."}</pre>
         </div>
       )}
     </div>

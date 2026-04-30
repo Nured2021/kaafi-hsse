@@ -3,7 +3,12 @@ import cors from "cors";
 import express from "express";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import { ensureSchema, listAiRuns, pool, saveAiRun } from "./db.js";
+import {
+  ensureSchema, listAiRuns, pool, saveAiRun,
+  registerUser, listUsers, getUserStats,
+  listIncidents, clearIncidents, clearAiRuns,
+  saveFormSubmission, listFormSubmissions, getFormSubmission,
+} from "./db.js";
 import { runKaafiPipeline } from "../../ai/index.js";
 
 const app = express();
@@ -67,6 +72,100 @@ app.post("/api/full-analysis", async (req, res, next) => {
       documents: analysis.documents,
       summary: analysis.summary,
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post("/api/users/register", async (req, res, next) => {
+  const { name, email, role } = req.body;
+
+  if (!name || !email) {
+    return res.status(400).json({ message: "name and email are required" });
+  }
+
+  try {
+    const user = await registerUser({ name, email, role });
+    res.status(201).json(user);
+  } catch (error) {
+    if (error.code === "23505") {
+      return res.status(409).json({ message: "Email already registered" });
+    }
+    next(error);
+  }
+});
+
+app.get("/api/users", async (_req, res, next) => {
+  try {
+    res.json(await listUsers());
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get("/api/users/stats", async (_req, res, next) => {
+  try {
+    res.json(await getUserStats());
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get("/api/incidents", async (_req, res, next) => {
+  try {
+    res.json(await listIncidents());
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.delete("/api/incidents", async (_req, res, next) => {
+  try {
+    await clearIncidents();
+    res.json({ message: "Incident history cleared" });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.delete("/api/ai/runs", async (_req, res, next) => {
+  try {
+    await clearAiRuns();
+    res.json({ message: "AI run history cleared" });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post("/api/forms", async (req, res, next) => {
+  const { formType, data } = req.body;
+
+  if (!formType || !data) {
+    return res.status(400).json({ message: "formType and data are required" });
+  }
+
+  try {
+    const submission = await saveFormSubmission(formType, data);
+    res.status(201).json(submission);
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get("/api/forms", async (req, res, next) => {
+  try {
+    const formType = req.query.type || null;
+    res.json(await listFormSubmissions(formType));
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get("/api/forms/:id", async (req, res, next) => {
+  try {
+    const submission = await getFormSubmission(req.params.id);
+    if (!submission) return res.status(404).json({ message: "Form not found" });
+    res.json(submission);
   } catch (error) {
     next(error);
   }
