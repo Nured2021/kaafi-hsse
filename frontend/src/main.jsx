@@ -8,6 +8,12 @@ import {
   getEmpathyValidationMessage,
   injectKaafiLogic,
 } from './core/kaafi_bridge/bridge.ts';
+import CanadianSelector from './components/CanadianSelector.jsx';
+import CoreStatus from './components/CoreStatus.jsx';
+import ModeSelector from './components/ModeSelector.jsx';
+import OfflineIndicator from './components/OfflineIndicator.jsx';
+import RiskMatrix from './components/RiskMatrix.jsx';
+import SafetyStop from './components/SafetyStop.jsx';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
@@ -69,6 +75,8 @@ function AiPage() {
   const [error, setError] = useState('');
   const [currentModel, setCurrentModel] = useState('');
   const [lastFailedModels, setLastFailedModels] = useState([]);
+  const [mode, setMode] = useState('ai_auto');
+  const [province, setProvince] = useState('AB');
   const kaafiLogic = injectKaafiLogic({ input });
   const isHighRisk = kaafiLogic.risk.level === 'HIGH';
 
@@ -99,7 +107,12 @@ function AiPage() {
       const response = await fetch(`${API_BASE_URL}/api/full-analysis`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ input: kaafiLogic.cleanedInput }),
+        body: JSON.stringify({
+          input: kaafiLogic.cleanedInput,
+          mode,
+          province,
+          manual_data: mode === 'manual' ? { source: 'frontend-manual-entry' } : {},
+        }),
       });
 
       window.clearInterval(statusTimer);
@@ -153,31 +166,20 @@ function AiPage() {
         <h2>{KAAFI_CONFIG.brand} Safety Assistant</h2>
         <p className="assistant-prompt">{getAssistantPrompt()}</p>
       </div>
+      <OfflineIndicator />
+      <ModeSelector mode={mode} onChange={setMode} />
+      <CanadianSelector province={province} onChange={setProvince} />
       <div className="risk-strip" style={{ backgroundColor: kaafiLogic.risk.color }}>
         <strong>{kaafiLogic.risk.level} risk</strong>
         <span>{kaafiLogic.risk.action}</span>
       </div>
-      <div className="risk-matrix">
-        {['LOW', 'MEDIUM', 'HIGH'].map((level) => (
-          <span
-            className={`risk-pill ${kaafiLogic.risk.level === level ? 'active' : ''}`}
-            key={level}
-            style={{ backgroundColor: KAAFI_CONFIG.alertColors[level] }}
-          >
-            {level}
-          </span>
-        ))}
-      </div>
+      <RiskMatrix activeLevel={result?.riskLevel || kaafiLogic.risk.level} />
       {isHighRisk && (
         <div className="permit-callout">
           Permit to Work is prioritized before this job starts.
         </div>
       )}
-      {result?.safetyStop?.active && (
-        <div className="stop-work-callout">
-          {result.safetyStop.message}
-        </div>
-      )}
+      <SafetyStop safetyStop={result?.safetyStop} />
       <div className="pipeline-status">
         <strong>Pipeline status:</strong> {currentModel || 'Ready'}
       </div>
@@ -205,16 +207,7 @@ function AiPage() {
               Retry failed model steps
             </button>
           )}
-          <div className="model-status-grid">
-            {(result.status || []).map((step) => (
-              <article className={`model-status ${step.status}`} key={step.step}>
-                <strong>{step.model}</strong>
-                <span>{step.step}</span>
-                <small>{step.status}{step.fallbackUsed ? ' - fallback used' : ''}</small>
-                {step.error && <small>{step.error}</small>}
-              </article>
-            ))}
-          </div>
+          <CoreStatus stages={result.status || []} />
           <ResultBlock title="KAAFI Header" content={kaafiLogic.header} />
           <ResultBlock title="Risk Analysis" content={result.risk} />
           <ResultBlock title="JSA" content={result.jsa} />

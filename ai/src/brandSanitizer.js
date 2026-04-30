@@ -21,13 +21,24 @@ export function sanitizeKaafiText(value) {
   return branded.replace(PERSONAL_NAME_LABEL, "$1: [Removed for privacy]");
 }
 
+function sanitizeDeep(value) {
+  if (typeof value === "string") {
+    return sanitizeKaafiText(value);
+  }
+
+  if (Array.isArray(value)) {
+    return value.map(sanitizeDeep);
+  }
+
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [key, sanitizeDeep(item)]),
+    );
+  }
+
+  return value;
+}
+
 export function sanitizeKaafiResult(result) {
-  return {
-    ...result,
-    input: sanitizeKaafiText(result.input),
-    risk: sanitizeKaafiText(result.risk),
-    jsa: sanitizeKaafiText(result.jsa),
-    documents: sanitizeKaafiText(result.documents),
-    summary: sanitizeKaafiText(result.summary),
-  };
+  return sanitizeDeep(result);
 }

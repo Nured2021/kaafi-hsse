@@ -186,6 +186,72 @@ form,
   background: #dc2626;
 }
 
+.selector-row,
+.offline-indicator {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.selector-row select,
+.selector-row input {
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 0.6rem;
+}
+
+.offline-indicator {
+  border-radius: 999px;
+  padding: 0.35rem 0.7rem;
+  width: fit-content;
+  font-weight: 800;
+}
+
+.offline-indicator.online {
+  color: #065f46;
+  background: #d1fae5;
+}
+
+.offline-indicator.offline {
+  color: #7f1d1d;
+  background: #fee2e2;
+}
+
+.risk-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(32px, 1fr));
+  gap: 0.25rem;
+}
+
+.risk-cell {
+  border-radius: 8px;
+  padding: 0.4rem;
+  text-align: center;
+  font-size: 0.8rem;
+  font-weight: 900;
+}
+
+.core-status-list {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.core-status-item {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 0.75rem;
+  background: #ffffff;
+}
+
+.core-status-item.complete {
+  border-left: 4px solid #00b050;
+}
+
+.core-status-item.failed {
+  border-left: 4px solid #ff0000;
+}
+
 .safety-stop {
   border: 2px solid #ff0000;
   border-radius: 14px;

@@ -79,13 +79,16 @@ assert_contains "$HEALTH" '"engine":"sqlite"' "SQLite fallback active"
 echo "== Pipeline execution =="
 ANALYSIS="$(curl -s -X POST "http://localhost:$PORT/api/full-analysis" \
   -H "Content-Type: application/json" \
-  -d "{\"input\":\"High Pressure Valve Repair for SafetyCo Partners near BP equipment\"}")"
+  -d "{\"input\":\"High Pressure Valve Repair for SafetyCo Partners near BP equipment\",\"mode\":\"hybrid\",\"province\":\"AB\",\"manual_data\":{\"crew\":\"day shift\"}}")"
 assert_contains "$ANALYSIS" '"risk"' "risk output returned"
 assert_contains "$ANALYSIS" '"jsa"' "jsa output returned"
 assert_contains "$ANALYSIS" '"documents"' "documents output returned"
 assert_contains "$ANALYSIS" '"summary"' "summary output returned"
 assert_contains "$ANALYSIS" '"status"' "model status returned"
 assert_contains "$ANALYSIS" '"safetyStop"' "safety stop metadata returned"
+assert_contains "$ANALYSIS" '"mode":"hybrid"' "mode returned"
+assert_contains "$ANALYSIS" '"province":"AB"' "province returned"
+assert_contains "$ANALYSIS" '"cores"' "core outputs returned"
 
 echo "== Brand sanitization and privacy scrub =="
 assert_contains "$ANALYSIS" "KAAFI HSSE" "legacy brands replaced"
@@ -98,6 +101,34 @@ assert_contains "$HISTORY" '"input"' "history returns saved run"
 RUN_ID="$(node -e 'const rows = JSON.parse(process.argv[1]); console.log(rows[0]?.id || "")' "$HISTORY")"
 DETAIL="$(curl -s "http://localhost:$PORT/api/ai/runs/$RUN_ID")"
 assert_contains "$DETAIL" "$RUN_ID" "run detail returns by id"
+
+echo "== Model status and PDF download =="
+MODEL_STATUS="$(curl -s "http://localhost:$PORT/api/ai/model-status")"
+assert_contains "$MODEL_STATUS" '"core0"' "model status includes core0"
+assert_contains "$MODEL_STATUS" '"core6"' "model status includes core6"
+
+PDF_RESPONSE="$(curl -s -i -X POST "http://localhost:$PORT/api/ai/download-pdf" \
+  -H "Content-Type: application/json" \
+  -d "{\"sessionId\":\"$RUN_ID\"}")"
+assert_contains "$PDF_RESPONSE" "HTTP/1.1 200 OK" "PDF endpoint returns file"
+assert_contains "$PDF_RESPONSE" "KAAFI HSSE - Safety Excellence" "PDF content branded"
+
+echo "== Core files and Canadian HSE data =="
+for file in \
+  ai/src/core0_ingestion.js \
+  ai/src/core1_hazard.js \
+  ai/src/core2_jsa.js \
+  ai/src/core3_documents.js \
+  ai/src/core4_critic.js \
+  ai/src/core5_synthesis.js \
+  ai/src/core6_feedback.js \
+  data/canada/ohs_acts.json \
+  data/canada/csa_standards.json \
+  data/canada/whmis_2015.json \
+  data/canada/provincial_matrix.js; do
+  [[ -f "$file" ]] || { echo "FAIL: missing $file"; exit 1; }
+done
+echo "PASS: core files and Canadian HSE data exist"
 
 echo "== Frontend serving =="
 FRONTEND="$(curl -s -i "http://localhost:$PORT/")"
