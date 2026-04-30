@@ -83,6 +83,34 @@ button:disabled {
   color: #ffffff;
 }
 
+.risk-matrix,
+.pipeline-status,
+.context-summary {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.risk-matrix {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.risk-cell {
+  border: 2px solid transparent;
+  border-radius: 12px;
+  padding: 0.85rem;
+  color: #111827;
+  font-weight: 800;
+}
+
+.risk-cell.active {
+  border-color: #111827;
+  box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.12);
+}
+
+.risk-cell.high {
+  color: #ffffff;
+}
+
 .stats,
 .results {
   display: grid;
@@ -121,6 +149,50 @@ form,
 .secondary-button {
   color: #0f766e;
   background: #d7fff7;
+}
+
+.model-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) auto;
+  gap: 0.5rem;
+  align-items: center;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 0.75rem;
+  background: #ffffff;
+}
+
+.model-row.failed {
+  border-color: #dc2626;
+  background: #fff1f2;
+}
+
+.model-status {
+  border-radius: 999px;
+  padding: 0.25rem 0.65rem;
+  color: #ffffff;
+  background: #64748b;
+  font-size: 0.8rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.model-status.complete {
+  background: #00b050;
+}
+
+.model-status.failed,
+.model-status.fallback {
+  background: #dc2626;
+}
+
+.safety-stop {
+  border: 2px solid #ff0000;
+  border-radius: 14px;
+  padding: 1rem;
+  color: #7f1d1d;
+  background: #fee2e2;
+  font-weight: 900;
 }
 
 textarea {

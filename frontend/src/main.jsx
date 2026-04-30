@@ -19,7 +19,7 @@ function Dashboard() {
     async function loadDashboard() {
       const [dashboardResponse, runsResponse] = await Promise.all([
         fetch(`${API_BASE_URL}/api/dashboard`),
-        fetch(`${API_BASE_URL}/api/ai/runs`),
+        fetch(`${API_BASE_URL}/api/ai/history`),
       ]);
 
       setDashboard(await dashboardResponse.json());
@@ -67,11 +67,12 @@ function AiPage() {
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [currentModel, setCurrentModel] = useState('');
+  const [lastFailedModels, setLastFailedModels] = useState([]);
   const kaafiLogic = injectKaafiLogic({ input });
   const isHighRisk = kaafiLogic.risk.level === 'HIGH';
 
-  async function submitAnalysis(event) {
-    event.preventDefault();
+  async function runAnalysis(options = {}) {
     if (!input.trim()) {
       setError(getEmpathyValidationMessage('input'));
       return;
@@ -79,26 +80,55 @@ function AiPage() {
 
     setLoading(true);
     setError('');
-    setResult(null);
+    if (!options.retryOnly) {
+      setResult(null);
+    }
+    setCurrentModel('DeepSeek risk gate');
 
     try {
+      const statusTimer = window.setInterval(() => {
+        setCurrentModel((model) => {
+          if (model === 'DeepSeek risk gate') return 'Mistral JSA builder';
+          if (model === 'Mistral JSA builder') return 'DeepSeek critic loop';
+          if (model === 'DeepSeek critic loop') return 'Gemma document builder';
+          if (model === 'Gemma document builder') return 'Phi-3 summary';
+          return model;
+        });
+      }, 700);
+
       const response = await fetch(`${API_BASE_URL}/api/full-analysis`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ input: kaafiLogic.cleanedInput }),
       });
 
+      window.clearInterval(statusTimer);
+
       if (!response.ok) {
         const detail = await response.json();
         throw new Error(detail.message || 'Analysis failed');
       }
 
-      setResult(await response.json());
+      const analysis = await response.json();
+      const failedModels = (analysis.status || []).filter((step) => step.status === 'failed');
+      setLastFailedModels(failedModels);
+      setCurrentModel('Complete');
+      setResult(analysis);
     } catch (analysisError) {
       setError(analysisError.message);
+      setCurrentModel('Error');
     } finally {
       setLoading(false);
     }
+  }
+
+  async function submitAnalysis(event) {
+    event.preventDefault();
+    await runAnalysis();
+  }
+
+  async function retryFailedModels() {
+    await runAnalysis({ retryOnly: true });
   }
 
   function downloadSmartClean() {
@@ -127,11 +157,30 @@ function AiPage() {
         <strong>{kaafiLogic.risk.level} risk</strong>
         <span>{kaafiLogic.risk.action}</span>
       </div>
+      <div className="risk-matrix">
+        {['LOW', 'MEDIUM', 'HIGH'].map((level) => (
+          <span
+            className={`risk-pill ${kaafiLogic.risk.level === level ? 'active' : ''}`}
+            key={level}
+            style={{ backgroundColor: KAAFI_CONFIG.alertColors[level] }}
+          >
+            {level}
+          </span>
+        ))}
+      </div>
       {isHighRisk && (
         <div className="permit-callout">
           Permit to Work is prioritized before this job starts.
         </div>
       )}
+      {result?.safetyStop?.active && (
+        <div className="stop-work-callout">
+          {result.safetyStop.message}
+        </div>
+      )}
+      <div className="pipeline-status">
+        <strong>Pipeline status:</strong> {currentModel || 'Ready'}
+      </div>
       <form onSubmit={submitAnalysis}>
         <label htmlFor="hsse-input">Work activity or safety concern</label>
         <textarea
@@ -151,9 +200,25 @@ function AiPage() {
           <button className="secondary-button" onClick={downloadSmartClean} type="button">
             Smart Clean Download
           </button>
+          {lastFailedModels.length > 0 && (
+            <button className="secondary-button warning" onClick={retryFailedModels} type="button">
+              Retry failed model steps
+            </button>
+          )}
+          <div className="model-status-grid">
+            {(result.status || []).map((step) => (
+              <article className={`model-status ${step.status}`} key={step.step}>
+                <strong>{step.model}</strong>
+                <span>{step.step}</span>
+                <small>{step.status}{step.fallbackUsed ? ' - fallback used' : ''}</small>
+                {step.error && <small>{step.error}</small>}
+              </article>
+            ))}
+          </div>
           <ResultBlock title="KAAFI Header" content={kaafiLogic.header} />
           <ResultBlock title="Risk Analysis" content={result.risk} />
           <ResultBlock title="JSA" content={result.jsa} />
+          <ResultBlock title="Critic Review" content={result.criticReview} />
           <ResultBlock title="Documents" content={result.documents} />
           <ResultBlock title="Summary" content={result.summary} />
         </div>

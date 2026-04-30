@@ -33,16 +33,22 @@ PORT=3000
 
 ## AI pipeline
 
-There is no orchestrator and no model routing. The backend calls one direct
-function that runs each Ollama model in this fixed order:
+The backend calls one direct KAAFI pipeline function inside the same Express
+process. It uses an in-process HSSE Context Bus to track model outputs, status,
+critic review, failed models, and Safety Stop metadata:
 
 ```text
 User Input
-  -> deepseek-r1:7b       risk
+  -> deepseek-r1:7b       risk gate
+     -> mistral:7b-instruct fallback if DeepSeek fails
   -> mistral:7b-instruct  JSA
+  -> deepseek-r1:7b       critic review
   -> gemma:7b             documents
   -> phi3                 summary
 ```
+
+Extreme risk signals set `safetyStop.active = true` and return STOP WORK
+metadata to the frontend.
 
 ## Frontend
 

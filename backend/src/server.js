@@ -3,7 +3,7 @@ import cors from "cors";
 import express from "express";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import { ensureSchema, listAiRuns, pool, saveAiRun } from "./db.js";
+import { ensureSchema, getAiRun, getDatabaseInfo, listAiRuns, query, saveAiRun } from "./db.js";
 import { enforceKaafiBranding, runKaafiPipeline } from "../../ai/index.js";
 
 const app = express();
@@ -16,8 +16,8 @@ app.use(express.json({ limit: "1mb" }));
 
 app.get("/health", async (_req, res) => {
   try {
-    await pool.query("SELECT 1");
-    res.json({ status: "ok", database: "connected" });
+    await query("SELECT 1");
+    res.json({ status: "ok", database: getDatabaseInfo() });
   } catch (error) {
     res.status(503).json({ status: "error", database: "unavailable", message: error.message });
   }
@@ -25,13 +25,22 @@ app.get("/health", async (_req, res) => {
 
 app.get("/api/dashboard", async (_req, res, next) => {
   try {
-    const aiRuns = await pool.query("SELECT COUNT(*)::int AS count FROM ai_runs");
+    const aiRuns = await query("SELECT COUNT(*) AS count FROM ai_runs");
 
     res.json({
-      aiAssessments: aiRuns.rows[0]?.count || 0,
+      aiAssessments: Number(aiRuns.rows[0]?.count || 0),
       platform: "KAAFI HSSE",
       pipeline: ["DeepSeek", "Mistral", "Gemma", "Phi-3"],
+      database: getDatabaseInfo(),
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get("/api/ai/history", async (_req, res, next) => {
+  try {
+    res.json(await listAiRuns());
   } catch (error) {
     next(error);
   }
@@ -40,6 +49,20 @@ app.get("/api/dashboard", async (_req, res, next) => {
 app.get("/api/ai/runs", async (_req, res, next) => {
   try {
     res.json(await listAiRuns());
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get("/api/ai/runs/:id", async (req, res, next) => {
+  try {
+    const run = await getAiRun(req.params.id);
+
+    if (!run) {
+      return res.status(404).json({ message: "AI run not found" });
+    }
+
+    res.json(run);
   } catch (error) {
     next(error);
   }
@@ -56,7 +79,7 @@ app.post("/api/ai/analyze", async (req, res, next) => {
     const analysis = enforceKaafiBranding(await runKaafiPipeline(input));
     const savedRun = await saveAiRun(analysis);
 
-    res.json(savedRun);
+    res.json({ ...analysis, id: savedRun.id, created_at: savedRun.created_at });
   } catch (error) {
     next(error);
   }
@@ -71,18 +94,27 @@ app.post("/api/full-analysis", async (req, res, next) => {
 
   try {
     const analysis = enforceKaafiBranding(await runKaafiPipeline(input));
+    let savedRun = null;
 
     try {
-      await saveAiRun(analysis);
+      savedRun = await saveAiRun(analysis);
     } catch (databaseError) {
       console.error("Failed to save full analysis", databaseError);
     }
 
     res.json({
+      id: savedRun?.id,
       risk: analysis.risk,
       jsa: analysis.jsa,
       documents: analysis.documents,
       summary: analysis.summary,
+      status: analysis.status,
+      failedModels: analysis.failedModels,
+      currentModel: analysis.currentModel,
+      safetyStop: analysis.safetyStop,
+      riskLevel: analysis.riskLevel,
+      contextBus: analysis.contextBus,
+      created_at: savedRun?.created_at,
     });
   } catch (error) {
     next(error);
@@ -112,7 +144,6 @@ const server = app.listen(port, () => {
 
 process.on("SIGTERM", async () => {
   server.close(async () => {
-    await pool.end();
     process.exit(0);
   });
 });
