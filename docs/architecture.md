@@ -33,19 +33,41 @@ PORT=3000
 
 ## AI pipeline
 
-There is no orchestrator and no model routing. The backend calls one direct
-function that runs each Ollama model in this fixed order:
+The backend calls one direct KAAFI pipeline function inside the same Express
+process. It uses an in-process HSSE Context Bus to track model outputs, status,
+critic review, failed models, and Safety Stop metadata:
 
 ```text
 User Input
-  -> deepseek-r1:7b       risk
+  -> deepseek-r1:7b       risk gate
+     -> mistral:7b-instruct fallback if DeepSeek fails
   -> mistral:7b-instruct  JSA
+  -> deepseek-r1:7b       critic review
   -> gemma:7b             documents
   -> phi3                 summary
 ```
+
+Extreme risk signals set `safetyStop.active = true` and return STOP WORK
+metadata to the frontend.
 
 ## Frontend
 
 The frontend contains a simple dashboard and an AI analysis page. It calls the
 backend REST API through same-origin requests. The backend also serves the
 compiled `frontend/dist` assets so production runs on one URL and one port.
+
+## KAAFI Core Layer bridge
+
+The existing frontend now includes a small bridge at
+`frontend/src/core/kaafi_bridge/bridge.ts`. This bridge does not create a new
+project or replace the current form. It injects KAAFI logic into the existing
+AI/JSA form by:
+
+- forcing the `KAAFI HSSE` brand label in Home and form output,
+- sanitizing legacy organization names before analysis,
+- calculating the local Low/Medium/High risk color,
+- showing the supportive KAAFI assistant prompt,
+- prioritizing Permit to Work when the local risk signal is High.
+
+The backend also applies the same brand sanitization before returning
+`/api/full-analysis`, so direct API callers receive cleaned KAAFI output too.

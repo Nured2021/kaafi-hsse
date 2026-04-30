@@ -1,0 +1,26 @@
+{
+  "program": "WHMIS 2015",
+  "basis": "Hazardous Products Act and Hazardous Products Regulations",
+  "classes": [
+    "Flammable gases",
+    "Flammable liquids",
+    "Oxidizing gases",
+    "Gases under pressure",
+    "Acute toxicity",
+    "Skin corrosion/irritation",
+    "Serious eye damage/eye irritation",
+    "Respiratory or skin sensitization",
+    "Carcinogenicity",
+    "Reproductive toxicity",
+    "Specific target organ toxicity",
+    "Aspiration hazard",
+    "Biohazardous infectious materials"
+  ],
+  "required_controls": [
+    "Supplier label",
+    "Workplace label when transferred or decanted",
+    "Current safety data sheet",
+    "Worker education and training",
+    "Emergency spill and exposure response"
+  ]
+}

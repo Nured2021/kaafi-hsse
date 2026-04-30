@@ -1,123 +1,173 @@
-const OLLAMA_HOST = process.env.OLLAMA_HOST || "http://localhost:11434";
-
 export const MODELS = {
   risk: "deepseek-r1:7b",
+  riskFallback: "mistral:7b-instruct",
   jsa: "mistral:7b-instruct",
   documents: "gemma:7b",
   summary: "phi3",
 };
+import { runCore0Ingestion } from "./core0_ingestion.js";
+import { runCore1Hazard } from "./core1_hazard.js";
+import { runCore2Jsa } from "./core2_jsa.js";
+import { runCore3Documents } from "./core3_documents.js";
+import { runCore4Critic } from "./core4_critic.js";
+import { runCore5Synthesis } from "./core5_synthesis.js";
 
-async function askOllama(model, prompt) {
-  const response = await fetch(`${OLLAMA_HOST}/api/generate`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
+function createContextBus({ userInput, mode = "ai_auto", province = "AB", manualData = {} }) {
+  return {
+    input: userInput,
+    mode,
+    province,
+    manualData,
+    models: MODELS,
+    outputs: {},
+    errors: [],
+    status: {
+      currentModel: "",
+      stages: [],
     },
-    body: JSON.stringify({
-      model,
-      prompt,
-      stream: false,
-    }),
+  };
+}
+
+function startCore(contextBus, core, model) {
+  contextBus.status.currentModel = model;
+  contextBus.status.stages.push({
+    core,
+    step: core,
+    model,
+    status: "running",
+    startedAt: new Date().toISOString(),
   });
-
-  if (!response.ok) {
-    const detail = await response.text();
-    throw new Error(`Ollama ${model} request failed: ${response.status} ${detail}`);
-  }
-
-  const data = await response.json();
-  return data.response || "";
 }
 
-async function runStep(stepName, model, prompt, results) {
+function finishCore(contextBus, status = "complete", extra = {}) {
+  const index = contextBus.status.stages.length - 1;
+  contextBus.status.stages[index] = {
+    ...contextBus.status.stages[index],
+    ...extra,
+    status,
+    finishedAt: new Date().toISOString(),
+  };
+}
+
+async function runCore(contextBus, core, model, callback) {
+  startCore(contextBus, core, model);
+
   try {
-    results[stepName] = await askOllama(model, prompt);
+    const result = await callback();
+    finishCore(contextBus);
+    return result;
   } catch (error) {
-    results[stepName] = `Model failed: ${error.message}`;
+    const failure = { core, step: core, model, message: error.message };
+    contextBus.errors.push(failure);
+    finishCore(contextBus, "failed", { error: error.message });
+    return { error: error.message };
   }
 }
 
-function buildRiskPrompt(input) {
-  return [
-    "You are the KAAFI HSSE risk analysis assistant.",
-    "Identify hazards, risk levels, controls, and escalation needs for this work activity.",
-    "",
-    `User input:\n${input}`,
-  ].join("\n");
+function formatCoreResult(title, value) {
+  if (typeof value === "string") {
+    return value;
+  }
+
+  return `${title}\n${JSON.stringify(value, null, 2)}`;
 }
 
-function buildJsaPrompt(input, risk) {
-  return [
-    "You are the KAAFI HSSE JSA assistant.",
-    "Create a concise job safety analysis using the user input and risk analysis.",
-    "",
-    `User input:\n${input}`,
-    "",
-    `Risk analysis:\n${risk}`,
-  ].join("\n");
-}
-
-function buildDocumentsPrompt(input, risk, jsa) {
-  return [
-    "You are the KAAFI HSSE document assistant.",
-    "Draft required HSSE documents, permits, toolbox talk notes, and recordkeeping items.",
-    "",
-    `User input:\n${input}`,
-    "",
-    `Risk analysis:\n${risk}`,
-    "",
-    `JSA:\n${jsa}`,
-  ].join("\n");
-}
-
-function buildSummaryPrompt(input, risk, jsa, documents) {
-  return [
-    "You are the KAAFI HSSE summary assistant.",
-    "Summarize the final HSSE output with top risks, immediate controls, required documents, and next actions.",
-    "",
-    `User input:\n${input}`,
-    "",
-    `Risk analysis:\n${risk}`,
-    "",
-    `JSA:\n${jsa}`,
-    "",
-    `Documents:\n${documents}`,
-  ].join("\n");
-}
-
-export async function runKaafiPipeline(userInput) {
+export async function runKaafiPipeline(userInput, options = {}) {
   if (!userInput || !userInput.trim()) {
     throw new Error("User input is required");
   }
 
-  const results = {
-    risk: "",
-    jsa: "",
-    documents: "",
-    summary: "",
-  };
+  const contextBus = createContextBus({
+    userInput,
+    mode: options.mode,
+    province: options.province,
+    manualData: options.manualData,
+  });
 
-  await runStep("risk", MODELS.risk, buildRiskPrompt(userInput), results);
-  await runStep("jsa", MODELS.jsa, buildJsaPrompt(userInput, results.risk), results);
-  await runStep(
-    "documents",
-    MODELS.documents,
-    buildDocumentsPrompt(userInput, results.risk, results.jsa),
-    results,
+  const ingestion = await runCore(contextBus, "core0_ingestion", MODELS.summary, () =>
+    runCore0Ingestion({ input: userInput }),
   );
-  await runStep(
-    "summary",
-    MODELS.summary,
-    buildSummaryPrompt(userInput, results.risk, results.jsa, results.documents),
-    results,
+
+  const cleanedInput = ingestion.cleanedInput || userInput;
+  contextBus.input = cleanedInput;
+  contextBus.outputs.ingestion = ingestion;
+
+  const hazard = await runCore(contextBus, "core1_hazard", MODELS.risk, async () => {
+    const result = await runCore1Hazard({ input: cleanedInput });
+    if (result.error) {
+      const fallback = await runCore1Hazard({ input: cleanedInput, model: MODELS.riskFallback });
+      contextBus.status.deepSeekFallback = "Mistral handled hazard identification after DeepSeek failure";
+      finishCore(contextBus, "complete", { fallbackUsed: true, fallbackModel: MODELS.riskFallback });
+      return fallback;
+    }
+    return result;
+  });
+  contextBus.outputs.hazard = hazard;
+
+  const jsa = await runCore(contextBus, "core2_jsa", MODELS.jsa, () =>
+    options.mode === "manual"
+      ? Promise.resolve(options.manualData?.jsa || {
+          steps: ["Manual mode selected. Review provided manual data."],
+          control_measures: [],
+          responsible_party: "Manual reviewer",
+        })
+      : runCore2Jsa({ input: cleanedInput, hazards: hazard }),
   );
+  contextBus.outputs.jsa = jsa;
+
+  const critic = await runCore(contextBus, "core4_critic", MODELS.risk, () =>
+    runCore4Critic({ input: cleanedInput, hazards: hazard, jsa }),
+  );
+  contextBus.outputs.critic = critic;
+
+  const documents = await runCore(contextBus, "core3_documents", MODELS.documents, () =>
+    runCore3Documents({ input: cleanedInput, hazards: hazard, jsa, province: options.province }),
+  );
+  contextBus.outputs.documents = documents;
+
+  const synthesis = await runCore(contextBus, "core5_synthesis", MODELS.summary, () =>
+    runCore5Synthesis({ input: cleanedInput, hazards: hazard, jsa, documents, critic }),
+  );
+  contextBus.outputs.synthesis = synthesis;
+
+  const riskMatrix = {
+    level: hazard.risk_score >= 9 ? "EXTREME" : hazard.risk_score >= 6 ? "HIGH" : hazard.risk_score >= 4 ? "MEDIUM" : "LOW",
+    score: hazard.risk_score || 1,
+    color: hazard.safety_stop || hazard.risk_score >= 6 ? "#FF0000" : hazard.risk_score >= 4 ? "#FFFF00" : "#00B050",
+    safetyStop: Boolean(hazard.safety_stop),
+    hazards: hazard.hazards || [],
+    controls: jsa.control_measures || [],
+    action: hazard.safety_stop
+      ? "STOP WORK: Extreme risk detected. Do not proceed until risk is reduced."
+      : "Proceed only after controls are verified.",
+  };
 
   return {
     models: MODELS,
-    input: userInput,
-    risk: results.risk,
-    jsa: results.jsa,
-    documents: results.documents,
-    summary: results.summary,
+    input: cleanedInput,
+    mode: contextBus.mode,
+    province: contextBus.province,
+    type: ingestion.type,
+    risk: formatCoreResult("Core 1 Hazard", hazard),
+    jsa: formatCoreResult("Core 2 JSA", jsa),
+    critic: formatCoreResult("Core 4 Critic", critic),
+    criticReview: formatCoreResult("Core 4 Critic", critic),
+    documents: formatCoreResult("Core 3 Documents", documents),
+    summary: synthesis.summary || formatCoreResult("Core 5 Synthesis", synthesis),
+    actionItems: synthesis.action_items || [],
+    requiredPermits: synthesis.required_permits || [],
+    contextBus,
+    cores: contextBus.outputs,
+    errors: contextBus.errors,
+    status: contextBus.status.stages,
+    stages: contextBus.status.stages,
+    currentModel: contextBus.status.currentModel,
+    riskMatrix,
+    riskLevel: riskMatrix.level,
+    safetyStop: {
+      active: riskMatrix.safetyStop,
+      message: riskMatrix.action,
+    },
+    failedModels: contextBus.errors,
   };
 }
