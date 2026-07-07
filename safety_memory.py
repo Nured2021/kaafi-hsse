@@ -1,56 +1,60 @@
 # ==========================================
 # PROJECT A: HSE OFFICE AI AGENCY
-# MODULE 2: SAFETY MEMORY — MULTI-INCIDENT DATABASE
+# MODULE 3: SAFETY MEMORY — FILE I/O & READING
 # ==========================================
 
-# 1. Advanced Data Structure: list of incident dictionaries
-incident_database = [
-    {
-        "id": "INC-001",
-        "officer": "Safety Officer AI",
-        "zone": "Zone-C Warehouse",
-        "report": "A worker was spotted operating the forklift without a hard hat and safety shoes.",
-    },
-    {
-        "id": "INC-002",
-        "officer": "Safety Officer AI",
-        "zone": "Zone-A Chemical Storage",
-        "report": "A chemical spill was detected near the solvent drums. Liquid spreading toward drainage.",
-    },
-    {
-        "id": "INC-003",
-        "officer": "Safety Officer AI",
-        "zone": "Zone-B Assembly Line",
-        "report": "Worker observed near live electrical panel with cabinet door left open.",
-    },
-    {
-        "id": "INC-004",
-        "officer": "Safety Officer AI",
-        "zone": "Zone-D Loading Bay",
-        "report": "Heavy machinery left unattended with engine running in pedestrian walkway.",
-    },
-    {
-        "id": "INC-005",
-        "officer": "Safety Officer AI",
-        "zone": "Zone-E Office Block",
-        "report": "Fire exit door was found blocked by cardboard boxes during a routine walkthrough.",
-    },
-    {
-        "id": "INC-006",
-        "officer": "Safety Officer AI",
-        "zone": "Zone-F Maintenance Bay",
-        "report": "Worker entered confined space without permit or gas monitoring equipment.",
-    },
-    {
-        "id": "INC-007",
-        "officer": "Safety Officer AI",
-        "zone": "Zone-G Roof Access",
-        "report": "Technician working at height without fall arrest harness attached.",
-    },
-]
+import os
+
+INCIDENTS_FILE = os.path.join(os.path.dirname(__file__), "incidents_log.txt")
+OFFICER_NAME = "Safety Officer AI"
 
 
-# 2. Keyword-based hazard classification engine
+def load_incidents(filepath: str) -> list:
+    """
+    Parse incidents_log.txt and return a list of incident dictionaries.
+
+    Expected block format (blank lines and # comments are ignored):
+        ID:     <id>
+        ZONE:   <zone>
+        REPORT: <description>
+    """
+    incidents = []
+    current: dict = {}
+
+    with open(filepath, encoding="utf-8") as fh:
+        for raw_line in fh:
+            line = raw_line.strip()
+
+            # Skip blank lines and comment lines
+            if not line or line.startswith("#"):
+                if current:
+                    # Flush a completed entry when we hit a blank line
+                    if {"id", "zone", "report"} <= current.keys():
+                        current.setdefault("officer", OFFICER_NAME)
+                        incidents.append(current)
+                    current = {}
+                continue
+
+            if line.upper().startswith("ID:"):
+                current["id"] = line.split(":", 1)[1].strip()
+            elif line.upper().startswith("ZONE:"):
+                current["zone"] = line.split(":", 1)[1].strip()
+            elif line.upper().startswith("REPORT:"):
+                current["report"] = line.split(":", 1)[1].strip()
+
+    # Flush the final entry if the file does not end with a blank line
+    if current and {"id", "zone", "report"} <= current.keys():
+        current.setdefault("officer", OFFICER_NAME)
+        incidents.append(current)
+
+    return incidents
+
+
+# 1. Load incidents from the external log file
+incident_database = load_incidents(INCIDENTS_FILE)
+
+
+# 2. Keyword-based hazard classification engine (unchanged)
 def classify_incident(report_text: str) -> dict:
     """
     Classify a single incident report by scanning for hazard keywords.
@@ -83,6 +87,18 @@ def classify_incident(report_text: str) -> dict:
             "risk_level": "CRITICAL",
             "recommended_action": "Halt entry immediately. Issue confined space permit and deploy gas monitor.",
         }
+    elif "toxic gas" in text or "toxic" in text or "fumes" in text or "ventilation" in text:
+        return {
+            "hazard_type": "Toxic / Gas Hazard",
+            "risk_level": "CRITICAL",
+            "recommended_action": "Evacuate the area immediately. Restore ventilation and conduct air quality testing before re-entry.",
+        }
+    elif "fuel" in text or "leak" in text or "ignition" in text or "high pressure" in text:
+        return {
+            "hazard_type": "Fire & Explosion Risk",
+            "risk_level": "CRITICAL",
+            "recommended_action": "Isolate the ignition source and fuel supply. Evacuate and deploy fire suppression team.",
+        }
     elif "height" in text or "fall" in text or "harness" in text:
         return {
             "hazard_type": "Working at Height Hazard",
@@ -103,7 +119,7 @@ def classify_incident(report_text: str) -> dict:
         }
 
 
-# 3. Process the database and print a formatted terminal report
+# 3. Process all loaded incidents and print a formatted terminal report
 RISK_COLOUR = {
     "CRITICAL": "\033[91m",   # red
     "HIGH":     "\033[93m",   # yellow

@@ -1,0 +1,46 @@
+# KAAFI HSSE — Incidents Log
+# Format per entry (3 lines):
+#   ID:     <incident-id>
+#   ZONE:   <facility zone>
+#   REPORT: <free-text description>
+# Blank lines and lines starting with # are ignored.
+
+ID:     INC-001
+ZONE:   Zone-C Warehouse
+REPORT: A worker was spotted operating the forklift without a hard hat and safety shoes.
+
+ID:     INC-002
+ZONE:   Zone-A Chemical Storage
+REPORT: A chemical spill was detected near the solvent drums. Liquid spreading toward drainage.
+
+ID:     INC-003
+ZONE:   Zone-B Assembly Line
+REPORT: Worker observed near live electrical panel with cabinet door left open.
+
+ID:     INC-004
+ZONE:   Zone-D Loading Bay
+REPORT: Heavy machinery left unattended with engine running in pedestrian walkway.
+
+ID:     INC-005
+ZONE:   Zone-E Office Block
+REPORT: Fire exit door was found blocked by cardboard boxes during a routine walkthrough.
+
+ID:     INC-006
+ZONE:   Zone-F Maintenance Bay
+REPORT: Worker entered confined space without permit or gas monitoring equipment.
+
+ID:     INC-007
+ZONE:   Zone-G Roof Access
+REPORT: Technician working at height without fall arrest harness attached.
+
+ID:     INC-008
+ZONE:   Zone-H Paint Shop
+REPORT: Toxic gas odour reported near the spray booth. Ventilation system appears offline.
+
+ID:     INC-009
+ZONE:   Zone-I Fuel Storage
+REPORT: Fuel drum found leaking near an open ignition source. High pressure hose disconnected.
+
+ID:     INC-010
+ZONE:   Zone-J Scaffolding Area
+REPORT: Workers on scaffolding observed without safety helmets or harnesses at 6-metre height.
